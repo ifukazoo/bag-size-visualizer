@@ -1,37 +1,23 @@
 import { useRef, useState, useEffect, useCallback } from 'react'
 import { loadSilhouetteImage, loadHandsLayerImage } from '../lib/silhouette'
+import {
+  type BagBbox,
+  calcLayout,
+  opaqueBboxFromImageData,
+  resolveBagPos,
+} from '../lib/bagLayout'
 
 const CANVAS_SIZE = 800
 const EXPORT_SIZE = 1080
-
-// 下端に確保するキャプション帯の高さ（canvasSize 比）。
-// キャプションは fontSize=0.022×canvas の2行で、2行＋余白 ≈ 4×fontSize ≈ 0.088×canvas。
-// 余裕を見て 0.10 とする。プレビュー(800)とエクスポート(1080)で同じ比率を使うことで、
-// シルエット配置が両者で厳密な一様拡大関係を保ち、バッグのドラッグ位置マッピングがずれない。
-const CAPTION_BAND_RATIO = 0.1
-
-// 新シルエット(812×1024)を Preview で目視測定した頭頂Y・足先Y。
-// 人物は画像全高を満たさないため、身長に対応するのは「頭頂〜足先」のピクセル。
-// 画像全高を身長扱いすると pixelsPerCm が過大になりバッグがわずかに大きく描かれる。
-const SILHOUETTE_TOP_Y = 35
-const SILHOUETTE_BOTTOM_Y = 1000
-const SILHOUETTE_FULL_HEIGHT = 1024
-const BODY_RATIO = (SILHOUETTE_BOTTOM_Y - SILHOUETTE_TOP_Y) / SILHOUETTE_FULL_HEIGHT // ≒ 0.9424
 
 interface BagPos {
   x: number
   y: number
 }
 
-interface BagBbox {
-  sx: number
-  sy: number
-  sw: number
-  sh: number
-}
-
 // 背景除去後のバッグ画像は「元写真と同寸・背景だけ透明」。不透明ピクセルの最小包含矩形を
 // 求めておき、描画時はその矩形だけを枠に割り当てることで透明余白による「小さすぎ」を防ぐ。
+// ピクセル走査の本体は純関数 opaqueBboxFromImageData に委ね、ここは DOM からの取り出しだけ。
 function computeOpaqueBbox(img: HTMLImageElement): BagBbox {
   const w = img.naturalWidth
   const h = img.naturalHeight
@@ -43,24 +29,7 @@ function computeOpaqueBbox(img: HTMLImageElement): BagBbox {
   if (!octx) return full
   octx.drawImage(img, 0, 0)
   const { data } = octx.getImageData(0, 0, w, h)
-
-  let minX = w
-  let minY = h
-  let maxX = -1
-  let maxY = -1
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      if (data[(y * w + x) * 4 + 3] > 16) {
-        if (x < minX) minX = x
-        if (x > maxX) maxX = x
-        if (y < minY) minY = y
-        if (y > maxY) maxY = y
-      }
-    }
-  }
-  // 不透明ピクセルが無ければ画像全体をフォールバック
-  if (maxX < minX || maxY < minY) return full
-  return { sx: minX, sy: minY, sw: maxX - minX + 1, sh: maxY - minY + 1 }
+  return opaqueBboxFromImageData(data, w, h)
 }
 
 export interface BagCanvasControls {
@@ -105,34 +74,17 @@ export function useBagCanvas(): BagCanvasControls {
     })
   }, [])
 
+  // シルエットの自然サイズを純関数 calcLayout に渡してレイアウトを得る薄いラッパ。
   function calcSizes(canvasSize: number) {
     const sil = silhouetteRef.current
-    // 下端のキャプション帯を除いた、人物・バッグを配置する領域。
-    const usableHeight = canvasSize * (1 - CAPTION_BAND_RATIO)
-    let silhouetteDrawnWidth: number
-    let silhouetteDrawnHeight: number
-
-    if (sil && sil.naturalWidth > 0 && sil.naturalHeight > 0) {
-      const scaleByH = (usableHeight * 0.9) / sil.naturalHeight
-      const scaleByW = (canvasSize * 0.9) / sil.naturalWidth
-      const scale = Math.min(scaleByH, scaleByW)
-      silhouetteDrawnWidth = sil.naturalWidth * scale
-      silhouetteDrawnHeight = sil.naturalHeight * scale
-    } else {
-      silhouetteDrawnHeight = usableHeight * 0.8
-      silhouetteDrawnWidth = silhouetteDrawnHeight * 0.4
-    }
-
-    const silhouetteX = (canvasSize - silhouetteDrawnWidth) / 2
-    // usableHeight 内で中央配置（帯の分だけ上寄せになる）。
-    const silhouetteY = (usableHeight - silhouetteDrawnHeight) / 2
-
-    const bodyPixels = silhouetteDrawnHeight * BODY_RATIO // 頭頂〜足先の実描画ピクセル
-    const pixelsPerCm = bodyPixels / modelHeight
-    const bagW = bagWidthCm * pixelsPerCm
-    const bagH = bagHeightCm * pixelsPerCm
-
-    return { silhouetteDrawnHeight, silhouetteDrawnWidth, silhouetteX, silhouetteY, bagW, bagH }
+    return calcLayout({
+      canvasSize,
+      silhouetteW: sil?.naturalWidth ?? 0,
+      silhouetteH: sil?.naturalHeight ?? 0,
+      modelHeight,
+      bagWidthCm,
+      bagHeightCm,
+    })
   }
 
   // キャプションを下端の帯（CAPTION_BAND_RATIO で確保）に描画する。
@@ -171,8 +123,7 @@ export function useBagCanvas(): BagCanvasControls {
     }
 
     if (bagImageRef.current) {
-      const bx = pos.x === 0 && pos.y === 0 ? (canvasSize - bagW) / 2 : pos.x
-      const by = pos.y === 0 && pos.x === 0 ? (canvasSize - bagH) / 2 : pos.y
+      const { x: bx, y: by } = resolveBagPos(pos, canvasSize, bagW, bagH)
       const bbox = bagBboxRef.current
       if (bbox) {
         ctx.drawImage(bagImageRef.current, bbox.sx, bbox.sy, bbox.sw, bbox.sh, bx, by, bagW, bagH)
@@ -230,8 +181,8 @@ export function useBagCanvas(): BagCanvasControls {
     }
 
     if (bagImageRef.current) {
-      const bx = pos.x === 0 && pos.y === 0 ? (EXPORT_SIZE - bagW) / 2 : pos.x * scale
-      const by = pos.y === 0 && pos.x === 0 ? (EXPORT_SIZE - bagH) / 2 : pos.y * scale
+      // プレビュー座標を出力解像度へ拡大する（未ドラッグ時は EXPORT_SIZE 内で中央寄せ）。
+      const { x: bx, y: by } = resolveBagPos(pos, EXPORT_SIZE, bagW, bagH, scale)
       const bbox = bagBboxRef.current
       if (bbox) {
         ctx.drawImage(bagImageRef.current, bbox.sx, bbox.sy, bbox.sw, bbox.sh, bx, by, bagW, bagH)
@@ -273,9 +224,7 @@ export function useBagCanvas(): BagCanvasControls {
 
     function getBagRect() {
       const { bagW, bagH } = calcSizes(CANVAS_SIZE)
-      const pos = bagPosRef.current
-      const bx = pos.x === 0 && pos.y === 0 ? (CANVAS_SIZE - bagW) / 2 : pos.x
-      const by = pos.y === 0 && pos.x === 0 ? (CANVAS_SIZE - bagH) / 2 : pos.y
+      const { x: bx, y: by } = resolveBagPos(bagPosRef.current, CANVAS_SIZE, bagW, bagH)
       return { bx, by, bagW, bagH }
     }
 
