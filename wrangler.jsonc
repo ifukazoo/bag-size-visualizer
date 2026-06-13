@@ -1,0 +1,11 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "bag-size-visualizer",
+  "compatibility_date": "2026-06-13",
+  // 静的アセットのみ配信する（サーバーロジックなし＝ main なし）。
+  // 単一ページアプリのため、未知のパスは index.html を返す。
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  }
+}
