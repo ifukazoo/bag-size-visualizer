@@ -259,11 +259,15 @@ export function useBagCanvas(): BagCanvasControls {
 
     function onTouchStart(e: TouchEvent) {
       if (e.touches.length === 0) return
-      e.preventDefault()
       startDrag(e.touches[0].clientX, e.touches[0].clientY)
+      // バッグ上で実際にドラッグが始まったときだけスクロールを止める。
+      // それ以外（バッグ外タッチ）はページの縦スクロールを妨げない。
+      if (isDraggingRef.current) e.preventDefault()
     }
     function onTouchMove(e: TouchEvent) {
       if (e.touches.length === 0) return
+      // ドラッグ中のみ preventDefault。非ドラッグ時はページスクロールを許可する。
+      if (!isDraggingRef.current) return
       e.preventDefault()
       moveDrag(e.touches[0].clientX, e.touches[0].clientY)
     }

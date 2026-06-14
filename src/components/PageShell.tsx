@@ -5,9 +5,9 @@ import type { ReactNode } from 'react'
 export default function PageShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-brand-shironeri text-brand-sumi">
-      <div className="mx-auto max-w-4xl px-6 py-12 flex flex-col gap-10">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6 py-8 sm:py-12 flex flex-col gap-8 sm:gap-10">
         <header className="flex flex-col gap-2">
-          <h1 className="font-heading text-brand-indigo text-3xl tracking-wide">
+          <h1 className="font-heading text-brand-indigo text-2xl sm:text-3xl tracking-wide">
             Bag Size Visualizer
           </h1>
           <p className="text-brand-muted text-sm">
