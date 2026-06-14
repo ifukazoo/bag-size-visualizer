@@ -68,6 +68,11 @@ export default function BagVisualizerPage() {
     <div className="flex flex-col gap-8 lg:grid lg:grid-cols-[18rem_1fr] lg:gap-10 lg:items-start">
       {/* controls panel — 狭幅では縦積み、lg では左カラム */}
       <div className="flex flex-col gap-5">
+        {/* リード文。lg では背の低い左カラムの余白を活用する */}
+        <p className="text-brand-muted text-sm mb-1">
+          バッグ画像を人物シルエットに実寸比率で重ね、サイズ感を確認して画像として保存できます。
+        </p>
+
         <div className="flex flex-col gap-2">
           <label className="text-brand-muted text-xs">バッグ画像</label>
           <input
@@ -203,12 +208,14 @@ export default function BagVisualizerPage() {
 
       {/* canvas column */}
       <div className="flex flex-col gap-4">
-        {/* canvas — fills available width, square aspect ratio */}
+        {/* canvas — 幅いっぱいだが、正方形のため高さが画面を占有しすぎないよう
+            幅を「コンテナ幅 or 画面高70%」の小さい方に制限し中央寄せする。
+            内部解像度(800)は不変なので WYSIWYG・ドラッグ精度に影響しない。 */}
         <canvas
           ref={canvasRef}
           width={800}
           height={800}
-          className="border border-brand-border rounded-soft w-full aspect-square"
+          className="border border-brand-border rounded-soft w-full max-w-[min(100%,70vh)] mx-auto aspect-square"
           style={{ cursor: hasBagImage ? 'grab' : 'default' }}
           aria-label="バッグサイズプレビューキャンバス"
         />
