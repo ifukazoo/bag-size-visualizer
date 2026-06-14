@@ -2,10 +2,13 @@
 
 Bag Size Visualizer の構成と設計判断をまとめる。コードに埋め込まれた意図を俯瞰できるようにすることが目的。
 
-## 1. 概要
+## 1. 技術スタック
 
-バッグの画像を人物シルエットに **実寸比率** で重ね、サイズ感を確認して PNG として保存できる Web ツール。
-画像のアップロード・背景透過・合成・書き出しまで、**すべてブラウザ内（クライアントサイド）で完結**する。サーバー側に画像を送らない。
+- React 19 + TypeScript / Vite / Tailwind CSS v4
+- [`@imgly/background-removal`](https://github.com/imgly/background-removal-js)（WASM / ONNX によるブラウザ内背景除去）
+- テスト: Vitest（単体テスト）/ Playwright（E2E）
+- CI: GitHub Actions
+- ホスティング: Cloudflare Workers（Static Assets）
 
 ## 2. 全体構成
 
