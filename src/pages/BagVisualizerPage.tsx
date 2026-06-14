@@ -107,8 +107,9 @@ export default function BagVisualizerPage() {
           </button>
         </div>
 
-        {/* 数値入力 — 狭幅では折り返し、横並びできる幅では並ぶ */}
-        <div className="flex flex-wrap gap-x-6 gap-y-4">
+        {/* 数値入力 — 狭幅(〜lg未満)は横折り返し(2+1)で縦を節約。
+            PC(lg以上)は縦積みにして背の低い左カラムを有効活用する */}
+        <div className="flex flex-wrap gap-x-6 gap-y-4 lg:flex-col lg:gap-4">
           <div className="flex flex-col gap-1">
             <label htmlFor="model-height" className="text-brand-muted text-xs">
               モデルの身長 (cm)
